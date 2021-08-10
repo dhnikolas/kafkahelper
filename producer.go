@@ -1,6 +1,9 @@
 package kafkahelper
 
-import "github.com/Shopify/sarama"
+import (
+	"context"
+	"github.com/Shopify/sarama"
+)
 
 func (c *Client) GetAsyncProducer() (sarama.AsyncProducer, error){
 	if c.producerConfig == nil {
@@ -30,7 +33,7 @@ func (c *Client) GetSyncProducer() (sarama.SyncProducer, error){
 	return producer, nil
 }
 
-func (c *Client) SendSyncMsg(topic string, msg []byte) error {
+func (c *Client) SendSyncMsg(ctx context.Context, topic string, msg []byte) error {
 	if c.syncProducer == nil {
 		sp, err := c.GetSyncProducer()
 		if err != nil {
@@ -39,6 +42,9 @@ func (c *Client) SendSyncMsg(topic string, msg []byte) error {
 		c.syncProducer = sp
 	}
 	newMsg := NewMsg(topic, msg)
+	if c.tracer != nil {
+		c.Inject(ctx, newMsg)
+	}
 	_, _, err := c.syncProducer.SendMessage(newMsg)
 	if err != nil {
 		return err
@@ -47,7 +53,7 @@ func (c *Client) SendSyncMsg(topic string, msg []byte) error {
 	return nil
 }
 
-func (c *Client) SendAsyncMsg(topic string, msg []byte) error {
+func (c *Client) SendAsyncMsg(ctx context.Context, topic string, msg []byte) error {
 	if c.asyncProducer == nil {
 		ap, err := c.GetAsyncProducer()
 		if err != nil {
@@ -56,6 +62,9 @@ func (c *Client) SendAsyncMsg(topic string, msg []byte) error {
 		c.asyncProducer = ap
 	}
 	newMsg := NewMsg(topic, msg)
+	if c.tracer != nil {
+		c.Inject(ctx, newMsg)
+	}
 	c.asyncProducer.Input() <- newMsg
 	return nil
 }

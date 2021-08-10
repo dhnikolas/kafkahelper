@@ -10,10 +10,11 @@ type consumer struct {
 	exit          chan bool
 	consumerGroup sarama.ConsumerGroup
 	handler       ConsumeHandler
+	c             *Client
 }
 
 type ConsumeHandler interface {
-	Receive(message *sarama.ConsumerMessage) error
+	Receive(ctx context.Context, message *sarama.ConsumerMessage) error
 }
 
 func (c *Client) Consume(ctx context.Context, topic string, group string, handler ConsumeHandler) (*consumer, error) {
@@ -35,6 +36,7 @@ func (c *Client) Consume(ctx context.Context, topic string, group string, handle
 		exit:          make(chan bool),
 		consumerGroup: cg,
 		handler:       handler,
+		c:             c,
 	}
 
 	exitChan := make(chan bool)
@@ -60,9 +62,13 @@ func (c *Client) Consume(ctx context.Context, topic string, group string, handle
 
 func (cons *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
-		err := cons.handler.Receive(message)
+		span, ctx, err := cons.c.Extract(context.Background(), message)
+		err = cons.handler.Receive(ctx, message)
 		if err == nil {
 			session.MarkMessage(message, "")
+		}
+		if span != nil {
+			span.Finish()
 		}
 	}
 	return nil
