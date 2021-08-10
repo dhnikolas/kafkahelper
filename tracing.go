@@ -12,12 +12,11 @@ type produceTrace struct {
 	rh []sarama.RecordHeader
 }
 
-func (c *Client) Inject (ctx context.Context, msg *sarama.ProducerMessage)  {
+func (c *Client) Inject (msg *sarama.ProducerMessage, span opentracing.Span)  {
 	if c.tracer == nil {
 		return
 	}
 	pt := &produceTrace{rh: msg.Headers}
-	span, _ := opentracing.StartSpanFromContext(ctx, "kafka produce message " + msg.Topic)
 	c.tracer.Inject(span.Context(), opentracing.TextMap, pt)
 	msg.Headers = pt.GetHeaders()
 

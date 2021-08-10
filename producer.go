@@ -3,6 +3,7 @@ package kafkahelper
 import (
 	"context"
 	"github.com/Shopify/sarama"
+	"github.com/opentracing/opentracing-go"
 )
 
 func (c *Client) GetAsyncProducer() (sarama.AsyncProducer, error){
@@ -42,29 +43,15 @@ func (c *Client) SendSyncMsg(ctx context.Context, topic string, msg []byte) erro
 		c.syncProducer = sp
 	}
 	newMsg := NewMsg(topic, msg)
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Produce message to topic " + topic)
+	defer span.Finish()
 	if c.tracer != nil {
-		c.Inject(ctx, newMsg)
+		c.Inject(newMsg, span)
 	}
 	_, _, err := c.syncProducer.SendMessage(newMsg)
 	if err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (c *Client) SendAsyncMsg(ctx context.Context, topic string, msg []byte) error {
-	if c.asyncProducer == nil {
-		ap, err := c.GetAsyncProducer()
-		if err != nil {
-			return err
-		}
-		c.asyncProducer = ap
-	}
-	newMsg := NewMsg(topic, msg)
-	if c.tracer != nil {
-		c.Inject(ctx, newMsg)
-	}
-	c.asyncProducer.Input() <- newMsg
 	return nil
 }
