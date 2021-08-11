@@ -64,8 +64,8 @@ func (c *Client) Consume(ctx context.Context, topic string, group string, handle
 
 func (cons *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
-		span, ctx, err := cons.c.Extract(context.Background(), message)
-		err = cons.handler.Receive(ctx, message)
+		span, ctx, _ := cons.c.Extract(context.Background(), message)
+		err := cons.handler.Receive(ctx, message)
 		if err == nil {
 			session.MarkMessage(message, "")
 		}
