@@ -2,6 +2,7 @@ package kafkahelper
 
 import (
 	"context"
+	"fmt"
 	"github.com/Shopify/sarama"
 )
 
@@ -44,6 +45,7 @@ func (c *Client) Consume(ctx context.Context, topic string, group string, handle
 		defer func() {
 			<-cons.exit
 			exitChan <- true
+			fmt.Println("Exiting from listening topic " + topic)
 		}()
 		for {
 			err := cons.consumerGroup.Consume(ctx, []string{topic}, cons)
