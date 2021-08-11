@@ -21,12 +21,7 @@ func (c *Client) GetAsyncProducer() (sarama.AsyncProducer, error){
 }
 
 func (c *Client) GetSyncProducer() (sarama.SyncProducer, error){
-	if c.producerConfig == nil {
-		c.producerConfig = sarama.NewConfig()
-		c.producerConfig.Producer.Return.Successes = true
-	}
-
-	producer, err := sarama.NewSyncProducer(c.BrokerList, c.producerConfig)
+	producer, err := sarama.NewSyncProducerFromClient(c.SdkClient)
 	if err != nil {
 		return nil, err
 	}
@@ -36,11 +31,13 @@ func (c *Client) GetSyncProducer() (sarama.SyncProducer, error){
 
 func (c *Client) SendSyncMsg(ctx context.Context, topic string, msg []byte) error {
 	if c.syncProducer == nil {
+		c.m.Lock()
 		sp, err := c.GetSyncProducer()
 		if err != nil {
 			return err
 		}
 		c.syncProducer = sp
+		c.m.Unlock()
 	}
 	newMsg := NewMsg(topic, msg)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Produce message to topic " + topic)

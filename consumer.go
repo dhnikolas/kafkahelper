@@ -16,19 +16,12 @@ type consumer struct {
 
 type ConsumeHandler interface {
 	Receive(ctx context.Context, message *sarama.ConsumerMessage) error
+	StopReceive (sarama.ConsumerGroupSession) error
+	Errors(err error)
 }
 
 func (c *Client) Consume(ctx context.Context, topic string, group string, handler ConsumeHandler) (*consumer, error) {
-	if c.consumerConfig == nil {
-		c.consumerConfig = sarama.NewConfig()
-		version, err := sarama.ParseKafkaVersion(c.kafkaVersion)
-		if err != nil {
-			return nil, err
-		}
-		c.consumerConfig.Version = version
-	}
-
-	cg, err := sarama.NewConsumerGroup(c.BrokerList, group, c.consumerConfig)
+	cg, err := sarama.NewConsumerGroupFromClient(group, c.SdkClient)
 	if err != nil {
 		return nil, err
 	}
@@ -39,6 +32,12 @@ func (c *Client) Consume(ctx context.Context, topic string, group string, handle
 		handler:       handler,
 		c:             c,
 	}
+
+	go func(ch <-chan error, consumeHandler ConsumeHandler) {
+		for e := range ch {
+			consumeHandler.Errors(e)
+		}
+	}(cg.Errors(), handler)
 
 	exitChan := make(chan bool)
 	go func(ch chan bool) {
@@ -81,9 +80,9 @@ func (cons *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (cons *consumer) Cleanup(sarama.ConsumerGroupSession) error {
+func (cons *consumer) Cleanup(s sarama.ConsumerGroupSession) error {
 	cons.exit <- true
-	return nil
+	return cons.handler.StopReceive(s)
 }
 
 func (cons *consumer) Cg() sarama.ConsumerGroup {
