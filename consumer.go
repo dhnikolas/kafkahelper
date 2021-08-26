@@ -39,11 +39,9 @@ func (c *Client) Consume(ctx context.Context, topic string, group string, handle
 		}
 	}(cg.Errors(), handler)
 
-	exitChan := make(chan bool)
-	go func(ch chan bool) {
+	go func() {
 		defer func() {
-			<-cons.exit
-			exitChan <- true
+			cons.exit <- true
 			fmt.Println("Exiting from listening topic " + topic)
 		}()
 		for {
@@ -52,12 +50,12 @@ func (c *Client) Consume(ctx context.Context, topic string, group string, handle
 				panic(err)
 			}
 			if ctx.Err() != nil {
+				fmt.Println(ctx.Err())
 				return
 			}
 			cons.ready = make(chan bool)
 		}
-
-	}(exitChan)
+	}()
 	return cons, nil
 }
 
@@ -81,7 +79,6 @@ func (cons *consumer) Setup(sarama.ConsumerGroupSession) error {
 }
 
 func (cons *consumer) Cleanup(s sarama.ConsumerGroupSession) error {
-	cons.exit <- true
 	return cons.handler.StopReceive(s)
 }
 
